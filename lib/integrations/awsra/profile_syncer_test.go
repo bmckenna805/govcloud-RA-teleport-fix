@@ -25,11 +25,13 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	ratypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -366,6 +368,43 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			require.NotEmpty(t, lastSyncSummary.ErrorMessage)
 		})
 	})
+}
+
+func TestAWSConsoleURLForARN(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputARN    string
+		expectedURL string
+	}{
+		{
+			name:        "GovCloud us-gov-west-1",
+			inputARN:    "arn:aws-us-gov:rolesanywhere:us-gov-west-1:123456789012:profile/uuid1",
+			expectedURL: constants.AWSUSGovConsoleURL,
+		},
+		{
+			name:        "GovCloud us-gov-east-1",
+			inputARN:    "arn:aws-us-gov:rolesanywhere:us-gov-east-1:123456789012:profile/uuid1",
+			expectedURL: constants.AWSUSGovConsoleURL,
+		},
+		{
+			name:        "AWS China",
+			inputARN:    "arn:aws-cn:rolesanywhere:cn-north-1:123456789012:profile/uuid1",
+			expectedURL: "https://console.amazonaws.cn",
+		},
+		{
+			name:        "AWS Standard",
+			inputARN:    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
+			expectedURL: "https://console.aws.amazon.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := arn.Parse(tt.inputARN)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedURL, awsConsoleURLForARN(parsed))
+		})
+	}
 }
 
 type mockRolesAnywhereClient struct {
